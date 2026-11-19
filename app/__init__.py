@@ -30,7 +30,18 @@ def create_app(test_config=None):
     csrf.init_app(app)
 
     from app.routes.main import bp as main_bp
+    from app.routes.auth import bp as auth_bp
+    app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
+
+    @app.before_request
+    def run_database_backed_escalation_check():
+        if app.config.get("TESTING"):
+            return
+        from app.services.services import AlertCoordinationService
+        AlertCoordinationService(app.extensions["database"]).escalate_expired(
+            app.config["ACKNOWLEDGEMENT_TIMEOUT_SECONDS"]
+        )
 
     @app.context_processor
     def global_template_values():
