@@ -1,0 +1,40 @@
+from flask import Flask
+from flask_wtf.csrf import CSRFProtect
+from dotenv import load_dotenv
+import os
+
+from app.repositories.database import Database
+
+csrf = CSRFProtect()
+
+
+def create_app(test_config=None):
+    load_dotenv()
+    app = Flask(__name__)
+    app.config.from_mapping(
+        SECRET_KEY=os.getenv("SECRET_KEY", "development-only-secret"),
+        DATABASE_URL=os.getenv("DATABASE_URL", "sqlite:///resqconnect.db"),
+        ACKNOWLEDGEMENT_TIMEOUT_SECONDS=int(os.getenv("ACKNOWLEDGEMENT_TIMEOUT_SECONDS", "120")),
+        DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS=int(os.getenv("DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS", "10")),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
+        SESSION_COOKIE_SAMESITE="Lax",
+        MAX_CONTENT_LENGTH=1 * 1024 * 1024,
+    )
+    if test_config:
+        app.config.update(test_config)
+
+    app.extensions["database"] = Database(app.config["DATABASE_URL"])
+    app.extensions["database"].initialize()
+
+    csrf.init_app(app)
+
+    from app.routes.main import bp as main_bp
+    app.register_blueprint(main_bp)
+
+    @app.context_processor
+    def global_template_values():
+        from flask import session
+        return {"current_user": session.get("user"), "demo_mode": app.config.get("DEMO_MODE", True)}
+
+    return app

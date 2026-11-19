@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ResQConnect{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand-link" href="/" aria-label="ResQConnect home">
+      <span class="brand-mark">RQ</span>
+      <span class="brand-name">ResQConnect</span>
+    </a>
+    <span class="demo-label">Demo environment</span>
+  </header>
+  {% block content %}{% endblock %}
+  <footer class="app-footer">
+    <div><strong>ResQConnect</strong> coordinates response workflows after an incident is reported.</div>
+    <div>This system does not replace official emergency helplines such as <strong>112</strong>.</div>
+  </footer>
+</body>
+</html>

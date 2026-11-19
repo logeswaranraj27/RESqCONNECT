@@ -1,0 +1,8 @@
+APScheduler==3.11.0
+Flask==3.1.2
+Flask-WTF==1.2.2
+gunicorn==23.0.0
+psycopg[binary]==3.3.9
+python-dotenv==1.1.1
+pytest==8.4.2
+Werkzeug==3.1.3
