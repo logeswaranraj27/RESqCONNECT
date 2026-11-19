@@ -143,3 +143,48 @@ def test_acknowledgement_timeout_escalates_once(app):
         )
     assert AlertCoordinationService(db).escalate_expired(0) >= 1
     assert AlertCoordinationService(db).escalate_expired(0) == 0
+
+
+def test_role_access_and_team_completion(app):
+    client = app.test_client()
+
+    credentials = [
+        ("citizen1", "role-citizen", "/dashboard", 200),
+        ("officer1", "role-officer", "/dashboard", 200),
+    ]
+    for username, role, path, expected in credentials:
+        response = client.post("/login", data={"username": username, "password": "demo1234"})
+        assert response.status_code == 302
+        assert client.get(path).status_code == expected
+        client.post("/logout")
+
+    citizen_login = client.post("/login", data={"username": "citizen1", "password": "demo1234"})
+    assert citizen_login.status_code == 302
+    assert client.get("/reports").status_code == 403
+    assert client.get("/admin/users").status_code == 404
+    client.post("/logout")
+
+
+def test_team_completion_updates_status_and_audit(app):
+    db = app.extensions["database"]
+    IncidentRepository(db).create(Incident(
+        id="incident-complete", incident_type="Fire", description="Warehouse fire",
+        address="Chennai", latitude=13.1, longitude=80.2, severity="High",
+        status="In Progress", reporter_id="citizen1",
+    ))
+    from app.repositories.repositories import AssignmentRepository
+    AssignmentRepository(db).create_with_id(
+        "assignment-complete", "incident-complete", "team04",
+        "Acknowledged", "officer1", "Demo completion test",
+    )
+    AlertCoordinationService(db).team_status(
+        "assignment-complete", "team04", "rescue1", "Completed"
+    )
+    incident = IncidentRepository(db).get("incident-complete")
+    assignment = AssignmentRepository(db).fetchone(
+        "SELECT * FROM assignments WHERE id = ?", ("assignment-complete",)
+    )
+    audit = AuditRepository(db).list(action="TEAM_STATUS_UPDATED")
+    assert incident["status"] == "Resolved"
+    assert assignment["status"] == "Completed"
+    assert len(audit) >= 1
