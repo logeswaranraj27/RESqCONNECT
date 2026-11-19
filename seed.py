@@ -72,6 +72,7 @@ try:
         cursor.execute(database.placeholder_sql(f"DELETE FROM {table} WHERE is_demo = 1"))
 
     for username, password, display_name, role_id in users:
+        password = "demo1234"
         cursor.execute(
             database.placeholder_sql(
                 "INSERT INTO users (id, username, password_hash, display_name, role_id, is_active, is_demo) "
