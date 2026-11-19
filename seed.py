@@ -1,11 +1,13 @@
 """Seed demo data for local and PostgreSQL databases."""
 from werkzeug.security import generate_password_hash
+import os
 
 from app import create_app
 
 
 app = create_app()
 database = app.extensions["database"]
+demo_password = os.getenv("DEMO_PASSWORD", "demo1234")
 
 roles = [
     ("role-citizen", "Citizen", "Reports and tracks incidents"),
@@ -72,13 +74,12 @@ try:
         cursor.execute(database.placeholder_sql(f"DELETE FROM {table} WHERE is_demo = 1"))
 
     for username, password, display_name, role_id in users:
-        password = "demo1234"
         cursor.execute(
             database.placeholder_sql(
                 "INSERT INTO users (id, username, password_hash, display_name, role_id, is_active, is_demo) "
                 "VALUES (?, ?, ?, ?, ?, 1, 1)"
             ),
-            (username, username, generate_password_hash(password), display_name, role_id),
+            (username, username, generate_password_hash(demo_password), display_name, role_id),
         )
 
     for team_id, name, capabilities, availability, latitude, longitude in teams:

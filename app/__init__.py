@@ -14,8 +14,15 @@ def create_app(test_config=None):
     app.config.from_mapping(
         SECRET_KEY=os.getenv("SECRET_KEY", "development-only-secret"),
         DATABASE_URL=os.getenv("DATABASE_URL", "sqlite:///resqconnect.db"),
-        ACKNOWLEDGEMENT_TIMEOUT_SECONDS=int(os.getenv("ACKNOWLEDGEMENT_TIMEOUT_SECONDS", "120")),
-        DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS=int(os.getenv("DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS", "10")),
+        ACKNOWLEDGEMENT_TIMEOUT_SECONDS=int(
+            os.getenv("DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS")
+            or os.getenv("ACKNOWLEDGEMENT_TIMEOUT_SECONDS", "120")
+        ),
+        DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS=(
+            int(os.getenv("DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS"))
+            if os.getenv("DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS")
+            else None
+        ),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
         SESSION_COOKIE_SAMESITE="Lax",
@@ -67,6 +74,10 @@ def create_app(test_config=None):
     @app.context_processor
     def global_template_values():
         from flask import session
-        return {"current_user": session.get("user"), "demo_mode": app.config.get("DEMO_MODE", True)}
+        return {
+            "current_user": session.get("user"),
+            "demo_mode": app.config.get("DEMO_MODE", True),
+            "demo_password": os.getenv("DEMO_PASSWORD", "demo1234"),
+        }
 
     return app

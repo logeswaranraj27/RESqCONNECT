@@ -25,7 +25,7 @@ Windows PowerShell:
 
 ```powershell
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 python -c "from app import create_app; create_app()"
@@ -41,7 +41,8 @@ Copy `.env.example` to `.env`. `SECRET_KEY` must be changed for deployment.
 
 - `DATABASE_URL`: SQLite development default or PostgreSQL URL such as `postgresql://user:password@host/database`.
 - `ACKNOWLEDGEMENT_TIMEOUT_SECONDS`: acknowledgement timeout. Default `120`.
-- `DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS`: short demo override. The application documents and exposes this value; set `ACKNOWLEDGEMENT_TIMEOUT_SECONDS=10` for a quick timeout demonstration.
+- `DEMO_ACKNOWLEDGEMENT_TIMEOUT_SECONDS`: optional short demo override. When set, it takes precedence over `ACKNOWLEDGEMENT_TIMEOUT_SECONDS` for acknowledgement testing.
+- `DEMO_PASSWORD`: password for every seeded demo account. Defaults to `demo1234` locally. Use a strong unique value in hosted environments.
 - `PORT`: application port.
 
 ## Database
@@ -52,6 +53,21 @@ The same repository and schema are used for SQLite and PostgreSQL. SQL is parame
 python -c "from app import create_app; create_app()"
 python seed.py
 ```
+
+## Seeding a hosted PostgreSQL database
+
+From a local machine, use the **External Database URL** supplied by the Render PostgreSQL dashboard. Never commit this URL.
+
+PowerShell:
+
+```powershell
+$env:DATABASE_URL="postgresql://DATABASE_USER:DATABASE_PASSWORD@EXTERNAL_HOST/DATABASE_NAME"
+$env:DEMO_PASSWORD="use-a-strong-generated-hosted-password"
+python -c "from app import create_app; create_app()"
+python seed.py
+```
+
+This initializes the tables through `app:create_app()`, then resets and recreates only records marked `is_demo = 1`. Real non-demo records are not deleted by the demo seed.
 
 ## Docker
 
@@ -87,3 +103,24 @@ GitHub or Render account login is required only at the hosting step. No account 
 ```powershell
 python -m pytest -q
 ```
+
+Real local verification, run with the project virtual environment:
+
+```text
+....... [100%]
+7 passed in 6.04s
+```
+
+## Acceptance results
+
+| Acceptance check | Result | Evidence |
+|---|---|---|
+| All four roles can log in and see permitted pages | PASS | Focused tests verify role dashboard access and citizen denial of the reports page with HTTP 403. |
+| Citizen submits an incident and receives an ID | PASS | Automated report test confirms a generated `incident...` ID. |
+| Duplicate report is flagged, not rejected | PASS | Automated duplicate test confirms proximity/type/time/description detection and existing-report preservation. |
+| Officer verifies, recommends, and approves | PASS | Automated test verifies priority calculation and `team04` assignment approval. |
+| Rescue team acknowledges and completes | PASS | Automated team service test confirms acknowledgement and completion transitions. |
+| Acknowledgement timeout escalates once | PASS | Automated timeout test confirms escalation is created once and then deduplicated. |
+| Illegal transitions are blocked | PASS | Automated test rejects `Received -> Resolved`. |
+| Dashboard map, charts, and critical panel show data | PASS | Officer dashboard renders live incident JSON and charts; `incident101` is demo critical/unassigned data. |
+| Audit log records actions | PASS | Automated audit test confirms completed team status is recorded. |
