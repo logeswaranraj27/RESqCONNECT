@@ -3,6 +3,12 @@
 {% block content %}
 <main class="app-shell">
   <div class="page-heading"><div><p class="eyebrow">Rescue Team console</p><h1>My assignments</h1></div></div>
+  <section class="workflow-guide team-guide" aria-label="Team assignment workflow">
+    <div><span>1</span><strong>Acknowledge</strong><small>Confirm your team received the order</small></div>
+    <div><span>2</span><strong>Dispatched</strong><small>The team is travelling to the location</small></div>
+    <div><span>3</span><strong>On Scene</strong><small>The team has reached the incident</small></div>
+    <div><span>4</span><strong>Completed</strong><small>Response work has finished</small></div>
+  </section>
   {% if assignments %}
   <section class="assignment-grid">
   {% for assignment in assignments %}

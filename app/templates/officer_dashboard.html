@@ -6,6 +6,12 @@
 {% block content %}
 <main class="app-shell">
   <div class="page-heading"><div><p class="eyebrow">Emergency Officer console</p><h1>Operations overview</h1></div><a class="button button-secondary" href="{{ url_for('main.reports') }}">Reports and audit</a></div>
+  <section class="workflow-guide" aria-label="Incident workflow guide">
+    <div><span>1</span><strong>Verify</strong><small>Confirm the incident details</small></div>
+    <div><span>2</span><strong>Prioritize</strong><small>Get a response-score recommendation</small></div>
+    <div><span>3</span><strong>Allocate</strong><small>Approve or revise the rescue-team recommendation</small></div>
+    <div><span>4</span><strong>Monitor</strong><small>Track dispatch and team status</small></div>
+  </section>
   <section class="metric-grid">
     <article class="metric"><span>Total incidents</span><strong>{{ overview.total }}</strong></article>
     <article class="metric metric-critical"><span>Critical unassigned</span><strong>{{ overview.critical_unassigned|length }}</strong></article>
@@ -32,17 +38,29 @@
       <td>{% if incident.duplicate_flag %}<span class="flag">Duplicate</span>{% endif %}{% if incident.suspicious_flag %}<span class="flag warning">Suspicious</span>{% endif %}</td>
       <td class="action-cell">
         {% if incident.status in ['Received','Under Review','Verification Required','Duplicate Review'] %}
+        <div class="action-explanation">
+          <strong>Verification needed</strong>
+          <small>Confirm the report details. This does not reject it, even if it is flagged as suspicious or duplicate.</small>
+        </div>
         <form method="post" action="{{ url_for('main.verify_incident', incident_id=incident.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select name="method" aria-label="Verification method"><option>Officer phone confirmation</option><option>Field report</option><option>Authority record</option></select>
-          <select name="result" aria-label="Verification result"><option>Verified</option><option>Requires follow-up</option></select>
-          <button class="button button-small button-secondary" type="submit">Verify</button>
+          <select name="method" aria-label="Verification method"><option value="Officer phone confirmation">Phone confirmation</option><option value="Field report">Field report</option><option value="Authority record">Authority record</option></select>
+          <input type="hidden" name="result" value="Verified">
+          <button class="button button-small button-secondary" type="submit">Record verification</button>
         </form>
         {% elif incident.status == 'Verified' %}
+        <div class="action-explanation">
+          <strong>Priority recommendation</strong>
+          <small>The system scores this verified incident. You can still approve or revise the result before allocation.</small>
+        </div>
         <form method="post" action="{{ url_for('main.prioritize_incident', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-secondary" type="submit">Recommend priority</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-secondary" type="submit">Calculate and record priority</button>
         </form>
         {% elif incident.status == 'Prioritized' or incident.status == 'Unassigned' %}
+        <div class="action-explanation">
+          <strong>Team allocation decision</strong>
+          <small>The recommendation considers capability and availability. Review the team, then approve or select a different team.</small>
+        </div>
         <form method="post" action="{{ url_for('main.assign_incident', incident_id=incident.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <select name="team_id" aria-label="Rescue team">

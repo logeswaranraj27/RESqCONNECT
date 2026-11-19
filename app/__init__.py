@@ -29,6 +29,27 @@ def create_app(test_config=None):
 
     csrf.init_app(app)
 
+    if not app.config.get("TESTING") and os.environ.get("WERKZEUG_RUN_MAIN") != "false":
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+            scheduler = app.extensions.get("acknowledgement_scheduler")
+            if scheduler is None:
+                scheduler = BackgroundScheduler(daemon=True)
+                app.extensions["acknowledgement_scheduler"] = scheduler
+
+                def check_acknowledgements():
+                    with app.app_context():
+                        from app.services.services import AlertCoordinationService
+                        AlertCoordinationService(app.extensions["database"]).escalate_expired(
+                            app.config["ACKNOWLEDGEMENT_TIMEOUT_SECONDS"]
+                        )
+
+                scheduler.add_job(check_acknowledgements, "interval", seconds=5, id="acknowledgement-escalation",
+                                  replace_existing=True)
+                scheduler.start()
+        except RuntimeError:
+            pass
+
     from app.routes.main import bp as main_bp
     from app.routes.auth import bp as auth_bp
     app.register_blueprint(auth_bp)
