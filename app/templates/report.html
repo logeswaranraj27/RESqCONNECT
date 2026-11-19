@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Report incident - ResQConnect{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
+{% block content %}
+<main class="app-shell narrow">
+  <div class="page-heading"><div><p class="eyebrow">Citizen reporting</p><h1>Report an incident</h1></div></div>
+  <form method="post" class="panel form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Incident type
+      <select name="incident_type" required><option value="">Select type</option><option>Flood</option><option>Fire</option><option>Earthquake</option><option>Other</option></select>
+    </label>
+    <label>Severity
+      <select name="severity" required><option value="">Select severity</option><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select>
+    </label>
+    <label class="span-2">Description
+      <textarea name="description" minlength="10" maxlength="2000" required></textarea>
+    </label>
+    <label class="span-2">Street address
+      <input name="address" required>
+    </label>
+    <div class="span-2">
+      <label>Location on map</label>
+      <div id="report-map" class="map map-small"></div>
+      <div class="coordinate-row">
+        <input name="latitude" id="latitude" type="number" step="0.000001" required aria-label="Latitude" placeholder="Latitude">
+        <input name="longitude" id="longitude" type="number" step="0.000001" required aria-label="Longitude" placeholder="Longitude">
+      </div>
+    </div>
+    <button class="button button-primary span-2" type="submit">Submit incident</button>
+  </form>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/report-map.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Officer console - ResQConnect{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+{% endblock %}
+{% block content %}
+<main class="app-shell">
+  <div class="page-heading"><div><p class="eyebrow">Emergency Officer console</p><h1>Operations overview</h1></div><a class="button button-secondary" href="{{ url_for('main.reports') }}">Reports and audit</a></div>
+  <section class="metric-grid">
+    <article class="metric"><span>Total incidents</span><strong>{{ overview.total }}</strong></article>
+    <article class="metric metric-critical"><span>Critical unassigned</span><strong>{{ overview.critical_unassigned|length }}</strong></article>
+  </section>
+  {% if overview.critical_unassigned %}
+  <section class="critical-panel"><h2>Critical and unassigned</h2>
+  {% for incident in overview.critical_unassigned %}
+    <div><strong>{{ incident.id }}</strong><span>{{ incident.incident_type }} — {{ incident.address }}</span></div>
+  {% endfor %}
+  </section>
+  {% endif %}
+  <section class="dashboard-grid">
+    <article class="panel"><div class="panel-heading"><h2>Incident map</h2><span class="demo-label">Live demo data</span></div><div id="incident-map" class="map"></div></article>
+    <article class="panel"><div class="panel-heading"><h2>Incidents by status</h2></div><canvas id="status-chart"></canvas></article>
+  </section>
+  <section class="panel">
+    <div class="panel-heading"><h2>Incident queue</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Severity</th><th>Status</th><th>Flags</th><th>Actions</th></tr></thead><tbody>
+    {% for incident in incidents %}
+    <tr>
+      <td><strong>{{ incident.id }}</strong></td><td>{{ incident.incident_type }}</td>
+      <td><span class="badge severity-{{ incident.severity|lower }}">{{ incident.severity }}</span></td>
+      <td><span class="badge status">{{ incident.status }}</span></td>
+      <td>{% if incident.duplicate_flag %}<span class="flag">Duplicate</span>{% endif %}{% if incident.suspicious_flag %}<span class="flag warning">Suspicious</span>{% endif %}</td>
+      <td class="action-cell">
+        {% if incident.status in ['Received','Under Review','Verification Required','Duplicate Review'] %}
+        <form method="post" action="{{ url_for('main.verify_incident', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="method" aria-label="Verification method"><option>Officer phone confirmation</option><option>Field report</option><option>Authority record</option></select>
+          <select name="result" aria-label="Verification result"><option>Verified</option><option>Requires follow-up</option></select>
+          <button class="button button-small button-secondary" type="submit">Verify</button>
+        </form>
+        {% elif incident.status == 'Verified' %}
+        <form method="post" action="{{ url_for('main.prioritize_incident', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-secondary" type="submit">Recommend priority</button>
+        </form>
+        {% elif incident.status == 'Prioritized' or incident.status == 'Unassigned' %}
+        <form method="post" action="{{ url_for('main.assign_incident', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="team_id" aria-label="Rescue team">
+          {% for team in teams %}<option value="{{ team.id }}">{{ team.id }} — {{ team.name }} ({{ team.availability }})</option>{% endfor %}
+          </select>
+          <button class="button button-small button-primary" type="submit">Approve allocation</button>
+        </form>
+        {% else %}<span class="muted">No officer action</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+  </section>
+</main>
+<script id="incident-data" type="application/json">{{ incidents|tojson }}</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

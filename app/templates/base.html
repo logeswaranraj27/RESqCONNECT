@@ -13,8 +13,27 @@
       <span class="brand-mark">RQ</span>
       <span class="brand-name">ResQConnect</span>
     </a>
-    <span class="demo-label">Demo environment</span>
+    <div class="header-actions">
+      {% if current_user %}
+      <span class="role-chip">{{ current_user.role }}</span>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-secondary button-small" type="submit">Sign out</button>
+      </form>
+      {% else %}
+      <span class="demo-label">Demo environment</span>
+      {% endif %}
+    </div>
   </header>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-stack" aria-live="polite">
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
   {% block content %}{% endblock %}
   <footer class="app-footer">
     <div><strong>ResQConnect</strong> coordinates response workflows after an incident is reported.</div>

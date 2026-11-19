@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Rescue team console - ResQConnect{% endblock %}
+{% block content %}
+<main class="app-shell">
+  <div class="page-heading"><div><p class="eyebrow">Rescue Team console</p><h1>My assignments</h1></div></div>
+  {% if assignments %}
+  <section class="assignment-grid">
+  {% for assignment in assignments %}
+  <article class="panel assignment-card">
+    <div class="assignment-top"><strong>{{ assignment.incident_id }}</strong><span class="badge severity-{{ assignment.severity|lower }}">{{ assignment.severity }}</span></div>
+    <h2>{{ assignment.incident_type }}</h2><p>{{ assignment.description }}</p><p class="muted">{{ assignment.address }}</p>
+    <div class="assignment-status"><span>Assignment</span><strong>{{ assignment.status }}</strong></div>
+    {% if assignment.status in ['PendingAcknowledgement','Acknowledged','Dispatched','On Scene'] %}
+    <div class="action-stack">
+      {% if assignment.status == 'PendingAcknowledgement' %}
+      <form method="post" action="{{ url_for('main.acknowledge_assignment', assignment_id=assignment.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Acknowledge assignment</button></form>
+      {% endif %}
+      <form method="post" action="{{ url_for('main.update_team_status', assignment_id=assignment.id) }}" class="status-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="status" aria-label="Operational status"><option>Dispatched</option><option>On Scene</option><option>Completed</option></select><button class="button button-secondary" type="submit">Update status</button>
+      </form>
+    </div>
+    {% else %}<div class="complete-note">Assignment complete</div>{% endif %}
+  </article>
+  {% endfor %}
+  </section>
+  {% else %}
+  <section class="empty-state"><h2>No active assignments</h2><p>New assignments approved by an Emergency Officer will appear here.</p></section>
+  {% endif %}
+</main>
+{% endblock %}

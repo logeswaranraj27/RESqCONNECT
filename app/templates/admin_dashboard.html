@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Administrator console - ResQConnect{% endblock %}
+{% block content %}
+<main class="app-shell">
+  <div class="page-heading"><div><p class="eyebrow">Administrator console</p><h1>Users and system activity</h1></div></div>
+  <section class="dashboard-grid">
+    <article class="panel"><div class="panel-heading"><h2>User management</h2></div>
+      <div class="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Change role</th></tr></thead><tbody>
+      {% for user in users %}
+      <tr><td><strong>{{ user.display_name }}</strong><br><span class="muted">{{ user.username }}</span></td><td>{{ user.role_name }}</td><td>
+      <form method="post" action="{{ url_for('main.update_user_role', user_id=user.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="role_id"><option value="role-citizen" {% if user.role_id=='role-citizen' %}selected{% endif %}>Citizen</option><option value="role-officer" {% if user.role_id=='role-officer' %}selected{% endif %}>Emergency Officer</option><option value="role-team" {% if user.role_id=='role-team' %}selected{% endif %}>Rescue Team</option><option value="role-admin" {% if user.role_id=='role-admin' %}selected{% endif %}>Administrator</option></select><button class="button button-small button-secondary">Save</button></form>
+      </td></tr>
+      {% endfor %}
+      </tbody></table></div>
+    </article>
+  </section>
+</main>
+{% endblock %}
