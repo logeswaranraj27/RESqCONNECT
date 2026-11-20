@@ -6,4 +6,4 @@ COPY . .
 ENV FLASK_ENV=production
 ENV PORT=10000
 EXPOSE 10000
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:create_app()"]
+CMD ["sh", "-c", "python -c \"from app import create_app; create_app()\" && python seed.py && exec gunicorn --config gunicorn.conf.py \"app:create_app()\""]
