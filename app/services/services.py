@@ -129,16 +129,32 @@ class VerificationService:
         incident = self.incidents.get(incident_id)
         if not incident:
             raise ValueError("Incident not found")
-        self.transition(incident_id, reviewer_id, "Under Review")
-        self.transition(incident_id, reviewer_id, "Verified", notes)
-        repo = IncidentRepository(self.db) if hasattr(self, "db") else None
+        current_status = incident["status"]
+        if current_status == "Verified":
+            raise ValueError("Incident is already verified")
+        if current_status == "Received":
+            self.transition(incident_id, reviewer_id, "Under Review")
+            current_status = "Under Review"
+
+        if current_status not in ("Under Review", "Verification Required", "Duplicate Review"):
+            raise ValueError(f"Cannot verify incident in status '{current_status}'")
+
+        if result == "False Report":
+            self.transition(incident_id, reviewer_id, "Cancelled", f"Marked as false report: {notes}")
+        elif result == "Duplicate":
+            self.transition(incident_id, reviewer_id, "Duplicate Review", notes)
+        elif result == "Needs Field Check":
+            self.transition(incident_id, reviewer_id, "Verification Required", notes)
+        else:
+            self.transition(incident_id, reviewer_id, "Verified", notes)
+
         connection = self.incidents.database.connect()
         try:
             cursor = connection.cursor()
             from app.repositories.base import new_id
             cursor.execute(
                 self.incidents.database.placeholder_sql(
-                    "INSERT INTO verification_records (id, incident_id, reviewer_id, method, result, notes, reviewed_at, is_demo) VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
+                    "INSERT INTO verification_records (id, incident_id, reviewer_id, method, result, notes, reviewed_at, is_demo) VALUES (?, ?, ?, ?, ?, ?, ?, 0)"
                 ),
                 (new_id("verify"), incident_id, reviewer_id, method, result, notes, utc_now()),
             )

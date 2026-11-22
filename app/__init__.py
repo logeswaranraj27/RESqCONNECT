@@ -1,7 +1,8 @@
-from flask import Flask
-from flask_wtf.csrf import CSRFProtect
+from flask import Flask, render_template, session
+from flask_wtf.csrf import CSRFError, CSRFProtect
 from dotenv import load_dotenv
 import os
+import uuid
 
 from app.repositories.database import Database
 
@@ -70,6 +71,50 @@ def create_app(test_config=None):
         AlertCoordinationService(app.extensions["database"]).escalate_expired(
             app.config["ACKNOWLEDGEMENT_TIMEOUT_SECONDS"]
         )
+
+    @app.errorhandler(400)
+    def handle_bad_request(e):
+        return render_template(
+            "error.html", code=400, title="Bad Request",
+            message="Your session changed. Reload the page and try again."
+        ), 400
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        return render_template(
+            "error.html", code=400, title="Session Expired",
+            message="Your session changed. Reload the page and try again."
+        ), 400
+
+    @app.errorhandler(403)
+    def handle_forbidden(e):
+        return render_template(
+            "error.html", code=403, title="Forbidden",
+            message="You do not have permission to access this page."
+        ), 403
+
+    @app.errorhandler(404)
+    def handle_not_found(e):
+        return render_template(
+            "error.html", code=404, title="Page Not Found",
+            message="The requested page or resource could not be found."
+        ), 404
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(e):
+        return render_template(
+            "error.html", code=405, title="Method Not Allowed",
+            message="The requested HTTP method is not allowed for this route."
+        ), 405
+
+    @app.errorhandler(500)
+    def handle_internal_server_error(e):
+        request_id = uuid.uuid4().hex[:8]
+        app.logger.error(f"[Req {request_id}] Internal server error: {e}", exc_info=True)
+        return render_template(
+            "error.html", code=500, title="Internal Server Error",
+            message=f"An unexpected server error occurred. (Request ID: {request_id})"
+        ), 500
 
     @app.context_processor
     def global_template_values():

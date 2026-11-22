@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import Blueprint, redirect, render_template, request, session, url_for, flash
+from flask import Blueprint, redirect, render_template, request, session, url_for, flash, abort
 
 from app.services.services import AuthRoleService, session_app_database
 
@@ -14,7 +14,7 @@ def login_required(roles=None):
             if not user:
                 return redirect(url_for("auth.login"))
             if roles and user["role"] not in roles:
-                return render_template("error.html", code=403, message="You do not have permission to access this page."), 403
+                abort(403)
             return view(*args, **kwargs)
         return wrapped
     return decorator

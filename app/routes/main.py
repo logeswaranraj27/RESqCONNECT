@@ -73,36 +73,56 @@ def report_post():
 @bp.post("/officer/incidents/<incident_id>/verify")
 @login_required(["Emergency Officer"])
 def verify_incident(incident_id):
-    VerificationService(session_app_database()).verify(
-        incident_id, session["user"]["id"], request.form.get("method", "Officer review"),
-        request.form.get("result", "Verified"), request.form.get("notes", ""),
-    )
-    flash("Incident verification recorded.", "success")
+    db = session_app_database()
+    actor_id = session["user"]["id"]
+    try:
+        VerificationService(db).verify(
+            incident_id, actor_id, request.form.get("method", "Officer review"),
+            request.form.get("result", "Verified"), request.form.get("notes", ""),
+        )
+        flash("Incident verification recorded.", "success")
+    except (ValueError, KeyError) as exc:
+        ReportingAuditService(db).audit.log(
+            actor_id, "ACTION_REJECTED", "Incident", incident_id, f"Verification rejected: {str(exc)}"
+        )
+        flash(f"Cannot verify incident: {str(exc)}", "error")
     return redirect(url_for("main.dashboard"))
 
 
 @bp.post("/officer/incidents/<incident_id>/prioritize")
 @login_required(["Emergency Officer"])
 def prioritize_incident(incident_id):
+    db = session_app_database()
+    actor_id = session["user"]["id"]
     try:
-        PrioritizationAllocationService(session_app_database()).prioritize(incident_id, session["user"]["id"])
+        PrioritizationAllocationService(db).prioritize(incident_id, actor_id)
         flash("Priority recommendation recorded.", "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
+    except (ValueError, KeyError) as exc:
+        ReportingAuditService(db).audit.log(
+            actor_id, "ACTION_REJECTED", "Incident", incident_id, f"Prioritization rejected: {str(exc)}"
+        )
+        flash(f"Cannot prioritize incident: {str(exc)}", "error")
     return redirect(url_for("main.dashboard"))
 
 
 @bp.post("/officer/incidents/<incident_id>/assign")
 @login_required(["Emergency Officer"])
 def assign_incident(incident_id):
+    db = session_app_database()
+    actor_id = session["user"]["id"]
     try:
-        team_id = request.form["team_id"]
-        assignment_id = PrioritizationAllocationService(session_app_database()).approve_assignment(
-            incident_id, team_id, session["user"]["id"], request.form.get("reason", ""),
+        team_id = request.form.get("team_id")
+        if not team_id:
+            raise ValueError("Please select a rescue team")
+        assignment_id = PrioritizationAllocationService(db).approve_assignment(
+            incident_id, team_id, actor_id, request.form.get("reason", ""),
         )
         flash(f"Assignment approved: {assignment_id}", "success")
     except (KeyError, ValueError) as exc:
-        flash(str(exc), "error")
+        ReportingAuditService(db).audit.log(
+            actor_id, "ACTION_REJECTED", "Incident", incident_id, f"Assignment rejected: {str(exc)}"
+        )
+        flash(f"Cannot assign incident: {str(exc)}", "error")
     return redirect(url_for("main.dashboard"))
 
 
