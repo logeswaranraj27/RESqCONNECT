@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Citizen Registration - ResQConnect{% endblock %}
+{% block content %}
+<main class="auth-page">
+  <section class="auth-card" style="max-width: 480px;">
+    <div class="brand-lockup">
+      <span class="brand-mark">RQ</span>
+      <div>
+        <strong>ResQConnect</strong>
+        <small>Real-Time Disaster Response and Coordination</small>
+      </div>
+    </div>
+    <h1>Create Citizen Account</h1>
+    <p>Register as a citizen reporter to submit incident reports and monitor their response status.</p>
+    <form method="post" action="{{ url_for('auth.register_post') }}" class="form-stack" id="register-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      
+      <!-- Honeypot anti-bot field -->
+      <div style="display:none;" aria-hidden="true">
+        <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+      </div>
+
+      <label>Full Name
+        <input name="full_name" value="{{ full_name|default('') }}" autocomplete="name" placeholder="e.g. Ananya Sharma" required autofocus>
+      </label>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+        <label>Username
+          <input name="username" value="{{ username|default('') }}" autocomplete="username" placeholder="e.g. ananya_s" required>
+        </label>
+        <label>Contact Number (Optional)
+          <input name="contact_number" value="{{ contact_number|default('') }}" autocomplete="tel" placeholder="+91 98765 43210">
+        </label>
+      </div>
+
+      <label>Email Address
+        <input name="email" type="email" value="{{ email|default('') }}" autocomplete="email" placeholder="ananya@example.com" required>
+      </label>
+
+      <label>Password
+        <div style="position: relative; display: flex; align-items: center;">
+          <input name="password" id="reg-password" type="password" autocomplete="new-password" placeholder="At least 8 characters" required style="width: 100%; padding-right: 2.75rem;">
+          <button type="button" id="toggle-reg-password" style="position: absolute; right: 0.5rem; background: none; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem;">Show</button>
+        </div>
+        <small style="color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;">Must be at least 8 characters and distinct from your username.</small>
+      </label>
+
+      <label>Confirm Password
+        <input name="confirm_password" id="reg-confirm" type="password" autocomplete="new-password" placeholder="Re-enter password" required>
+      </label>
+
+      <button class="button button-primary" id="register-btn" type="submit" style="margin-top: 0.75rem;">Create Account</button>
+    </form>
+    <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color, #e2e8f0); text-align: center; font-size: 0.95rem;">
+      Already have an account? <a href="{{ url_for('auth.login') }}" style="color: var(--primary, #0284c7); font-weight: 600; text-decoration: none;">Sign In</a>
+    </div>
+  </section>
+</main>
+<script>
+  const toggleBtn = document.getElementById('toggle-reg-password');
+  const passInput = document.getElementById('reg-password');
+  const confirmInput = document.getElementById('reg-confirm');
+  if (toggleBtn && passInput) {
+    toggleBtn.addEventListener('click', () => {
+      const isPass = passInput.type === 'password';
+      passInput.type = isPass ? 'text' : 'password';
+      if (confirmInput) confirmInput.type = isPass ? 'text' : 'password';
+      toggleBtn.textContent = isPass ? 'Hide' : 'Show';
+    });
+  }
+  const form = document.getElementById('register-form');
+  const btn = document.getElementById('register-btn');
+  if (form && btn) {
+    form.addEventListener('submit', () => {
+      btn.disabled = true;
+      btn.textContent = 'Creating account...';
+    });
+  }
+</script>
+{% endblock %}

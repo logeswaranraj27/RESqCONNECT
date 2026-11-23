@@ -1,82 +1,297 @@
 {% extends "base.html" %}
-{% block title %}Officer console - ResQConnect{% endblock %}
+{% block title %}Officer Console - ResQConnect{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
 {% block content %}
 <main class="app-shell">
-  <div class="page-heading"><div><p class="eyebrow">Emergency Officer console</p><h1>Operations overview</h1></div><a class="button button-secondary" href="{{ url_for('main.reports') }}">Reports and audit</a></div>
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Emergency Officer Console</p>
+      <h1>Operations Command</h1>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+      <a class="button button-secondary" href="{{ url_for('main.reports') }}">Reports & Audit</a>
+    </div>
+  </div>
+
+  <!-- Escalated Incidents Top Alert Panel -->
+  {% set escalated_incidents = incidents|selectattr('status', 'equalto', 'Escalated')|list %}
+  {% if escalated_incidents %}
+  <div class="escalated-banner">
+    <div>
+      <h3>🚨 URGENT: {{ escalated_incidents|length }} Escalated Incident(s) Requiring Attention</h3>
+      <div style="font-size: 13px; color: #7f1d1d;">Rescue team acknowledgement timeout or delivery failure exceeded. Immediate re-assignment or officer action required.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Workflow Guide -->
   <section class="workflow-guide" aria-label="Incident workflow guide">
-    <div><span>1</span><strong>Verify</strong><small>Confirm the incident details</small></div>
-    <div><span>2</span><strong>Prioritize</strong><small>Get a response-score recommendation</small></div>
-    <div><span>3</span><strong>Allocate</strong><small>Approve or revise the rescue-team recommendation</small></div>
-    <div><span>4</span><strong>Monitor</strong><small>Track dispatch and team status</small></div>
+    <div><span>1</span><strong>Verify</strong><small>Review flags and confirm genuineness</small></div>
+    <div><span>2</span><strong>Prioritize</strong><small>Confirm severity & compute priority</small></div>
+    <div><span>3</span><strong>Allocate</strong><small>Capability & availability dispatch</small></div>
+    <div><span>4</span><strong>Monitor & Resolve</strong><small>Real-time status tracking to closure</small></div>
   </section>
+
+  <!-- Metrics Grid -->
   <section class="metric-grid">
-    <article class="metric"><span>Total incidents</span><strong>{{ overview.total }}</strong></article>
-    <article class="metric metric-critical"><span>Critical unassigned</span><strong>{{ overview.critical_unassigned|length }}</strong></article>
+    <article class="metric"><span>Total Incidents</span><strong id="metric-total">{{ overview.total }}</strong></article>
+    <article class="metric metric-critical"><span>Critical Unassigned</span><strong id="metric-critical">{{ overview.critical_unassigned_count }}</strong></article>
+    <article class="metric"><span>Active Assignments</span><strong>{{ overview.by_status.get('In Progress', 0) + overview.by_status.get('Assigned', 0) }}</strong></article>
+    <article class="metric"><span>Resolved Incidents</span><strong>{{ overview.by_status.get('Resolved', 0) + overview.by_status.get('Closed', 0) }}</strong></article>
   </section>
+
+  <!-- Critical and Unassigned Panel -->
   {% if overview.critical_unassigned %}
-  <section class="critical-panel"><h2>Critical and unassigned</h2>
-  {% for incident in overview.critical_unassigned %}
-    <div><strong>{{ incident.id }}</strong><span>{{ incident.incident_type }} — {{ incident.address }}</span></div>
-  {% endfor %}
+  <section class="critical-panel">
+    <h2>⚠️ Critical & Unassigned Incidents ({{ overview.critical_unassigned|length }})</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Recommended Team</th>
+            <th>Quick Allocation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inc in overview.critical_unassigned %}
+          {% set rec = recommendations.get(inc.id) %}
+          <tr>
+            <td><a href="{{ url_for('main.incident_details', incident_id=inc.id) }}"><strong>{{ inc.id }}</strong></a></td>
+            <td>{{ inc.incident_type }}</td>
+            <td>{{ inc.address }}</td>
+            <td><span class="badge severity-critical">Critical</span></td>
+            <td><span class="badge status">{{ inc.status }}</span></td>
+            <td>
+              {% if rec and rec.team %}
+              <strong style="color: #1e40af;">{{ rec.team.name }}</strong>
+              <div style="font-size: 11px; color: #64748b;">{{ rec.reason }}</div>
+              {% else %}
+              <span class="muted">No match</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <form method="post" action="{{ url_for('main.assign_incident', incident_id=inc.id) }}" style="display: flex; gap: 0.25rem;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <select name="team_id" style="font-size: 12px; padding: 4px;">
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if rec and rec.team and rec.team.id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.availability }})</option>
+                    {% endfor %}
+                  </select>
+                  <button class="button button-small button-primary" type="submit">Assign</button>
+                </form>
+                <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=inc.id) }}">Details</a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </section>
   {% endif %}
+
+  <!-- Map and Chart Grid -->
   <section class="dashboard-grid">
-    <article class="panel"><div class="panel-heading"><h2>Incident map</h2><span class="demo-label">Live demo data</span></div><div id="incident-map" class="map"></div></article>
-    <article class="panel"><div class="panel-heading"><h2>Incidents by status</h2></div><canvas id="status-chart"></canvas></article>
+    <article class="panel">
+      <div class="panel-heading"><h2>Emergency Incident Map</h2><span class="demo-label">Live Geospatial View</span></div>
+      <div id="incident-map" class="map"></div>
+    </article>
+    <article class="panel">
+      <div class="panel-heading"><h2>Incidents by Status</h2></div>
+      <canvas id="status-chart"></canvas>
+    </article>
   </section>
+
+  <!-- Incident Queue Table with Complete Action Matrix -->
   <section class="panel">
-    <div class="panel-heading"><h2>Incident queue</h2></div>
-    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Severity</th><th>Status</th><th>Flags</th><th>Actions</th></tr></thead><tbody>
-    {% for incident in incidents %}
-    <tr>
-      <td><strong>{{ incident.id }}</strong></td><td>{{ incident.incident_type }}</td>
-      <td><span class="badge severity-{{ incident.severity|lower }}">{{ incident.severity }}</span></td>
-      <td><span class="badge status">{{ incident.status }}</span></td>
-      <td>{% if incident.duplicate_flag %}<span class="flag">Duplicate</span>{% endif %}{% if incident.suspicious_flag %}<span class="flag warning">Suspicious</span>{% endif %}</td>
-      <td class="action-cell">
-        {% if incident.status in ['Received','Under Review','Verification Required','Duplicate Review'] %}
-        <div class="action-explanation">
-          <strong>Verification needed</strong>
-          <small>Confirm the report details. This does not reject it, even if it is flagged as suspicious or duplicate.</small>
-        </div>
-        <form method="post" action="{{ url_for('main.verify_incident', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select name="method" aria-label="Verification method"><option value="Officer phone confirmation">Phone confirmation</option><option value="Field report">Field report</option><option value="Authority record">Authority record</option></select>
-          <input type="hidden" name="result" value="Verified">
-          <button class="button button-small button-secondary" type="submit">Record verification</button>
-        </form>
-        {% elif incident.status == 'Verified' %}
-        <div class="action-explanation">
-          <strong>Priority recommendation</strong>
-          <small>The system scores this verified incident. You can still approve or revise the result before allocation.</small>
-        </div>
-        <form method="post" action="{{ url_for('main.prioritize_incident', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-small button-secondary" type="submit">Calculate and record priority</button>
-        </form>
-        {% elif incident.status == 'Prioritized' or incident.status == 'Unassigned' %}
-        <div class="action-explanation">
-          <strong>Team allocation decision</strong>
-          <small>The recommendation considers capability and availability. Review the team, then approve or select a different team.</small>
-        </div>
-        <form method="post" action="{{ url_for('main.assign_incident', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select name="team_id" aria-label="Rescue team">
-          {% for team in teams %}<option value="{{ team.id }}">{{ team.id }} — {{ team.name }} ({{ team.availability }})</option>{% endfor %}
-          </select>
-          <button class="button button-small button-primary" type="submit">Approve allocation</button>
-        </form>
-        {% else %}<span class="muted">No officer action</span>{% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody></table></div>
+    <div class="panel-heading">
+      <h2>Incident Operations Queue</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Effective Severity</th>
+            <th>Status</th>
+            <th>Flags</th>
+            <th>Active Team</th>
+            <th>Officer Decision & Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for incident in incidents %}
+          {% set eff_sev = incident.effective_severity or incident.severity %}
+          {% set act = assignments.get(incident.id) %}
+          {% set rec = recommendations.get(incident.id) %}
+          <tr>
+            <td>
+              <a href="{{ url_for('main.incident_details', incident_id=incident.id) }}" style="font-weight: 700; color: #1e293b; text-decoration: none;">
+                {{ incident.id }}
+              </a>
+            </td>
+            <td>{{ incident.incident_type }}</td>
+            <td>
+              <span class="badge severity-{{ eff_sev|lower }}">{{ eff_sev }}</span>
+              {% if incident.reported_severity and incident.reported_severity != eff_sev %}
+              <div style="font-size: 10px; color: #64748b;" title="Reported by citizen">Rep: {{ incident.reported_severity }}</div>
+              {% endif %}
+            </td>
+            <td><span class="badge status">{{ incident.status }}</span></td>
+            <td>
+              {% if incident.duplicate_flag %}<span class="flag">Duplicate</span>{% endif %}
+              {% if incident.suspicious_flag %}<span class="flag warning">Suspicious</span>{% endif %}
+              {% if not incident.duplicate_flag and not incident.suspicious_flag %}<span style="color: #94a3b8; font-size: 11px;">—</span>{% endif %}
+            </td>
+            <td>
+              {% if act %}
+              <strong>{{ act.team_id }}</strong>
+              <div style="font-size: 11px; color: #64748b;">{{ act.status }}</div>
+              {% else %}
+              <span style="color: #94a3b8;">Unassigned</span>
+              {% endif %}
+            </td>
+            <td class="action-cell">
+              <!-- STATE ACTION MATRIX -->
+
+              <!-- 1. Flagged Incident Actions -->
+              {% if incident.duplicate_flag or incident.suspicious_flag %}
+              <div class="action-explanation">
+                <strong>Flagged Report Review</strong>
+                <small>Confirm genuine, link duplicate, or mark false report.</small>
+              </div>
+              <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                <form method="post" action="{{ url_for('main.resolve_flag', incident_id=incident.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="genuine">
+                  <button class="button button-small button-primary" type="submit">Confirm Genuine</button>
+                </form>
+                <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">Review Flag</a>
+              </div>
+
+              <!-- 2. Unverified Incident Actions -->
+              {% elif incident.status in ['Received', 'Under Review', 'Verification Required', 'Duplicate Review'] %}
+              <div class="action-explanation">
+                <strong>Verification Needed</strong>
+                <small>Review and record official verification.</small>
+              </div>
+              <form method="post" action="{{ url_for('main.verify_incident', incident_id=incident.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="method" aria-label="Verification method" style="font-size: 12px; padding: 4px;">
+                  <option value="Officer phone confirmation">Phone confirmation</option>
+                  <option value="Field report">Field inspection</option>
+                  <option value="Authority record">Authority record</option>
+                </select>
+                <input type="hidden" name="result" value="Verified">
+                <button class="button button-small button-secondary" type="submit">Verify</button>
+              </form>
+
+              <!-- 3. Verified State: Calculate Priority -->
+              {% elif incident.status == 'Verified' %}
+              <div class="action-explanation">
+                <strong>Calculate Priority</strong>
+                <small>Compute recommendation score and confirm severity.</small>
+              </div>
+              <form method="post" action="{{ url_for('main.prioritize_incident', incident_id=incident.id) }}" style="display: flex; gap: 0.25rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-small button-secondary" type="submit">Calculate Priority</button>
+              </form>
+
+              <!-- 4. Prioritized or Unassigned State: Team Allocation -->
+              {% elif incident.status in ['Prioritized', 'Unassigned'] %}
+              <div class="action-explanation">
+                <strong>Team Allocation</strong>
+                <small>{{ rec.reason if rec else 'Approve recommended team' }}</small>
+              </div>
+              <form method="post" action="{{ url_for('main.assign_incident', incident_id=incident.id) }}" style="display: flex; gap: 0.25rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="team_id" aria-label="Rescue team" style="font-size: 12px; padding: 4px;">
+                  {% for team in teams %}
+                  <option value="{{ team.id }}" {% if rec and rec.team and rec.team.id == team.id %}selected{% endif %}>{{ team.name }} ({{ team.availability }})</option>
+                  {% endfor %}
+                </select>
+                <button class="button button-small button-primary" type="submit">Approve Allocation</button>
+              </form>
+
+              <!-- 5. Escalated State: Quick Reassignment or Cancel -->
+              {% elif incident.status == 'Escalated' %}
+              <div class="action-explanation">
+                <strong style="color: #b91c1c;">Timeout Escalated</strong>
+                <small>Reassign team or cancel.</small>
+              </div>
+              <form method="post" action="{{ url_for('main.reassign_incident', incident_id=incident.id) }}" style="display: flex; gap: 0.25rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <select name="new_team_id" style="font-size: 12px; padding: 4px;">
+                  {% for team in teams %}
+                  <option value="{{ team.id }}">{{ team.name }} ({{ team.availability }})</option>
+                  {% endfor %}
+                </select>
+                <button class="button button-small button-primary" type="submit">Reassign</button>
+                <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">Details</a>
+              </form>
+
+              <!-- 6. Assigned or In Progress: Reassign, Cancel Assignment, View Status -->
+              {% elif incident.status in ['Assigned', 'In Progress'] %}
+              <div class="action-explanation">
+                <strong>Dispatch In Progress</strong>
+                <small>{{ act.status if act else 'In field' }} &bull; Assigned to {{ act.team_id if act else 'Team' }}</small>
+              </div>
+              <div style="display: flex; gap: 0.25rem;">
+                <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">Manage Dispatch</a>
+              </div>
+
+              <!-- 7. Resolved: Close or Reopen -->
+              {% elif incident.status == 'Resolved' %}
+              <div class="action-explanation">
+                <strong>Operation Completed</strong>
+                <small>Close incident or reopen for follow-up.</small>
+              </div>
+              <div style="display: flex; gap: 0.25rem;">
+                <form method="post" action="{{ url_for('main.close_incident', incident_id=incident.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="button button-small button-primary" type="submit">Close</button>
+                </form>
+                <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">Reopen</a>
+              </div>
+
+              <!-- 8. Closed or Cancelled: Read-only with Reopen option in Details -->
+              {% elif incident.status in ['Closed', 'Cancelled'] %}
+              <span class="muted">{{ incident.status }} &bull; <a href="{{ url_for('main.incident_details', incident_id=incident.id) }}" style="color: #64748b;">View Details</a></span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </section>
 </main>
+
 <script id="incident-data" type="application/json">{{ incidents|tojson }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+  // Listen for background live polling updates
+  window.addEventListener('resqconnect:update', (event) => {
+    const data = event.detail;
+    const critEl = document.getElementById('metric-critical');
+    if (critEl && data.critical_unassigned_count !== undefined) {
+      critEl.textContent = data.critical_unassigned_count;
+    }
+    const totEl = document.getElementById('metric-total');
+    if (totEl && data.total_incidents !== undefined) {
+      totEl.textContent = data.total_incidents;
+    }
+  });
+</script>
 {% endblock %}

@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% block title %}Incident {{ incident.id }} - ResQConnect{% endblock %}
+{% block content %}
+<main class="app-shell">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+        <span class="eyebrow">{{ incident.incident_type }} Emergency</span>
+        <span class="badge status">{{ incident.status }}</span>
+        {% if incident.effective_severity == 'Critical' %}
+        <span class="badge severity-critical">Critical</span>
+        {% elif incident.effective_severity == 'High' %}
+        <span class="badge severity-high">High</span>
+        {% elif incident.effective_severity == 'Medium' %}
+        <span class="badge severity-medium">Medium</span>
+        {% else %}
+        <span class="badge severity-low">Low</span>
+        {% endif %}
+        {% if incident.duplicate_flag %}<span class="flag">Duplicate</span>{% endif %}
+        {% if incident.suspicious_flag %}<span class="flag warning">Suspicious</span>{% endif %}
+      </div>
+      <h1 style="font-size: 1.85rem; margin: 0; color: #0f172a;">Incident {{ incident.id }}</h1>
+      <p style="color: #64748b; margin: 0.25rem 0 0;">{{ incident.address }} ({{ incident.latitude }}, {{ incident.longitude }})</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+      <a class="button button-secondary" href="{{ url_for('main.dashboard') }}">Back to Dashboard</a>
+    </div>
+  </div>
+
+  {% if incident.status == 'Escalated' %}
+  <div class="escalated-banner">
+    <div>
+      <h3>⚠️ Escalated Incident</h3>
+      <div style="font-size: 13px; color: #7f1d1d;">Team acknowledgement timeout or delivery failure exceeded. Immediate officer intervention required.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1.2fr); gap: 1.5rem; margin-bottom: 1.5rem;">
+    <!-- Left Column: Details & Timelines -->
+    <div>
+      <!-- Incident Overview Card -->
+      <section class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-heading"><h2>Incident Overview</h2></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 13px; margin-bottom: 1rem;">
+          <div><strong>Reported Severity:</strong> {{ incident.reported_severity or incident.severity }}</div>
+          <div><strong>Effective Severity:</strong> <strong>{{ incident.effective_severity or incident.severity }}</strong></div>
+          <div><strong>Reported By:</strong> {{ incident.reporter_id }}</div>
+          <div><strong>Reported Time:</strong> {{ incident.created_at }}</div>
+          {% if incident.priority_score %}
+          <div><strong>Priority Score:</strong> {{ incident.priority_score }} ({{ incident.priority_level }})</div>
+          {% endif %}
+          {% if incident.duplicate_of %}
+          <div><strong>Duplicate of:</strong> <a href="{{ url_for('main.incident_details', incident_id=incident.duplicate_of) }}">{{ incident.duplicate_of }}</a></div>
+          {% endif %}
+        </div>
+        <div style="padding: 0.75rem; background: #f8fafc; border-radius: 6px; font-size: 13px;">
+          <strong>Description:</strong>
+          <p style="margin: 0.35rem 0 0; color: #334155;">{{ incident.description }}</p>
+        </div>
+        {% if incident.cancellation_reason %}
+        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; font-size: 13px; color: #991b1b;">
+          <strong>Cancellation / Closure Reason:</strong> {{ incident.cancellation_reason }}
+        </div>
+        {% endif %}
+        {% if incident.officer_notes %}
+        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 13px; color: #1e40af;">
+          <strong>Officer Notes:</strong> {{ incident.officer_notes }}
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- Assignment & Dispatch History -->
+      <section class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-heading"><h2>Dispatch & Assignment History</h2></div>
+        {% if assignments %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Assignment ID</th><th>Team</th><th>Status</th><th>Created</th><th>Acknowledged</th></tr>
+            </thead>
+            <tbody>
+              {% for a in assignments %}
+              <tr>
+                <td><strong>{{ a.id }}</strong></td>
+                <td>{{ a.team_name }} ({{ a.team_id }})</td>
+                <td><span class="badge status">{{ a.status }}</span></td>
+                <td>{{ a.created_at }}</td>
+                <td>{{ a.acknowledged_at or 'Pending' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p style="color: #64748b; font-size: 13px; margin: 0;">No rescue team assignments recorded for this incident.</p>
+        {% endif %}
+      </section>
+
+      <!-- Audit Trail Timeline -->
+      <section class="panel">
+        <div class="panel-heading"><h2>Lifecycle & Audit Trail</h2></div>
+        <div class="timeline">
+          {% for log in audit_history %}
+          <div class="timeline-item {% if 'CANCELLED' in log.action or 'REJECTED' in log.action %}critical{% elif 'ESCALATED' in log.action %}warning{% elif 'VERIFIED' in log.action or 'APPROVED' in log.action %}success{% endif %}">
+            <div class="timeline-meta">{{ log.created_at }} &bull; {{ log.actor_name or log.actor_username or log.actor_id or 'System' }}</div>
+            <div class="timeline-content">
+              <strong>{{ log.action }}</strong>
+              {% if log.details %}<div style="margin-top: 2px;">{{ log.details }}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Column: Officer Decision Actions -->
+    <div>
+      {% if current_user.role in ['Emergency Officer', 'Administrator'] %}
+      
+      <!-- Severity Review Card -->
+      <section class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-heading"><h2>Confirm / Update Severity</h2></div>
+        <form method="post" action="{{ url_for('main.prioritize_incident', incident_id=incident.id) }}" class="form-stack" style="margin-top: 0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Effective Severity
+            <select name="severity">
+              <option value="Critical" {% if incident.effective_severity == 'Critical' %}selected{% endif %}>Critical</option>
+              <option value="High" {% if incident.effective_severity == 'High' %}selected{% endif %}>High</option>
+              <option value="Medium" {% if incident.effective_severity == 'Medium' %}selected{% endif %}>Medium</option>
+              <option value="Low" {% if incident.effective_severity == 'Low' %}selected{% endif %}>Low</option>
+            </select>
+          </label>
+          <label>Reason (Mandatory if modified)
+            <input name="reason" placeholder="Reason for adjusting severity">
+          </label>
+          <button class="button button-small button-secondary" type="submit">Update & Prioritize</button>
+        </form>
+      </section>
+
+      <!-- Flag Resolution (if flagged) -->
+      {% if incident.duplicate_flag or incident.suspicious_flag %}
+      <section class="panel" style="margin-bottom: 1.5rem; border-left: 4px solid var(--amber);">
+        <div class="panel-heading"><h2>Resolve Report Flags</h2></div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 0;">The system only flags potential duplicates/hoaxes. The officer must decide.</p>
+        
+        <!-- Confirm Genuine -->
+        <form method="post" action="{{ url_for('main.resolve_flag', incident_id=incident.id) }}" style="margin-bottom: 0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="genuine">
+          <input name="notes" placeholder="Notes (e.g. caller verified)" style="margin-bottom: 0.35rem; font-size: 12px; padding: 6px;">
+          <button class="button button-small button-primary" type="submit" style="width: 100%;">Confirm Genuine & Verify</button>
+        </form>
+
+        <!-- Mark Duplicate -->
+        <form method="post" action="{{ url_for('main.resolve_flag', incident_id=incident.id) }}" style="margin-bottom: 0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="duplicate">
+          <input name="duplicate_of" value="{{ incident.duplicate_of|default('') }}" placeholder="Original Incident ID (e.g. incident102)" required style="margin-bottom: 0.35rem; font-size: 12px; padding: 6px;">
+          <input name="notes" placeholder="Duplicate notes" style="margin-bottom: 0.35rem; font-size: 12px; padding: 6px;">
+          <button class="button button-small button-secondary" type="submit" style="width: 100%;">Mark as Duplicate</button>
+        </form>
+
+        <!-- Mark False Report -->
+        <form method="post" action="{{ url_for('main.resolve_flag', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="false_report">
+          <input name="notes" placeholder="Mandatory reason for false report" required style="margin-bottom: 0.35rem; font-size: 12px; padding: 6px;">
+          <button class="button button-small button-secondary" type="submit" style="width: 100%; color: #dc2626; border-color: #fca5a5;">Mark False Report & Cancel</button>
+        </form>
+      </section>
+      {% endif %}
+
+      <!-- Verification Action (if unverified) -->
+      {% if incident.status in ['Received', 'Under Review', 'Verification Required', 'Duplicate Review'] and not (incident.duplicate_flag or incident.suspicious_flag) %}
+      <section class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-heading"><h2>Record Verification</h2></div>
+        <form method="post" action="{{ url_for('main.verify_incident', incident_id=incident.id) }}" class="form-stack" style="margin-top: 0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Verification Method
+            <select name="method">
+              <option value="Officer phone confirmation">Phone confirmation</option>
+              <option value="Field report">Field inspection</option>
+              <option value="Authority record">Authority record</option>
+            </select>
+          </label>
+          <label>Notes
+            <input name="notes" placeholder="Verification notes">
+          </label>
+          <input type="hidden" name="result" value="Verified">
+          <button class="button button-primary" type="submit">Verify Incident</button>
+        </form>
+      </section>
+      {% endif %}
+
+      <!-- Assignment / Reassignment Action -->
+      <section class="panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-heading"><h2>Team Allocation</h2></div>
+        {% if rec_team %}
+        <div style="font-size: 12px; background: #eff8ff; padding: 8px 10px; border-radius: 6px; margin-bottom: 10px; color: #1e40af;">
+          <strong>System Recommendation:</strong> {{ rec_team.name }} ({{ rec_team.availability }})<br>
+          <small>{{ rec_reason }}</small>
+        </div>
+        {% endif %}
+
+        {% if active_assignment %}
+        <!-- Active Assignment: Allow Reassign or Cancel Assignment -->
+        <div style="font-size: 13px; margin-bottom: 10px; padding: 8px; background: #f8fafc; border-radius: 6px;">
+          Currently assigned to: <strong>{{ active_assignment.team_id }}</strong> (Status: {{ active_assignment.status }})
+        </div>
+        <form method="post" action="{{ url_for('main.reassign_incident', incident_id=incident.id) }}" class="form-stack" style="margin-top: 0; margin-bottom: 0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Reassign to Team
+            <select name="new_team_id">
+              {% for t in teams %}
+              <option value="{{ t.id }}" {% if rec_team and rec_team.id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.availability }})</option>
+              {% endfor %}
+            </select>
+          </label>
+          <input name="reason" placeholder="Reassignment reason" style="font-size: 12px; padding: 6px;">
+          <button class="button button-small button-primary" type="submit">Reassign Team</button>
+        </form>
+
+        <form method="post" action="{{ url_for('main.cancel_assignment', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="assignment_id" value="{{ active_assignment.id }}">
+          <input name="reason" placeholder="Cancellation reason" required style="font-size: 12px; padding: 6px; margin-bottom: 0.35rem;">
+          <button class="button button-small button-secondary" type="submit" style="color: #b91c1c; border-color: #fca5a5; width: 100%;">Cancel Assignment & Free Team</button>
+        </form>
+
+        {% else %}
+        <!-- No active assignment: Assign Team -->
+        <form method="post" action="{{ url_for('main.assign_incident', incident_id=incident.id) }}" class="form-stack" style="margin-top: 0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Select Rescue Team
+            <select name="team_id">
+              {% for t in teams %}
+              <option value="{{ t.id }}" {% if rec_team and rec_team.id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.availability }})</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Reason / Notes
+            <input name="reason" value="{{ rec_reason if rec_team else '' }}">
+          </label>
+          <button class="button button-primary" type="submit">Approve Allocation</button>
+        </form>
+        {% endif %}
+      </section>
+
+      <!-- Incident Lifecycle Operations -->
+      <section class="panel">
+        <div class="panel-heading"><h2>Incident State Actions</h2></div>
+        
+        <!-- Add Officer Note -->
+        <form method="post" action="{{ url_for('main.add_note', incident_id=incident.id) }}" style="margin-bottom: 1rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="note" placeholder="Add operational note..." required style="font-size: 12px; padding: 6px; margin-bottom: 0.35rem;">
+          <button class="button button-small button-secondary" type="submit" style="width: 100%;">Add Note</button>
+        </form>
+
+        <!-- Close if Resolved -->
+        {% if incident.status == 'Resolved' %}
+        <form method="post" action="{{ url_for('main.close_incident', incident_id=incident.id) }}" style="margin-bottom: 0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="notes" placeholder="Closure notes..." style="font-size: 12px; padding: 6px; margin-bottom: 0.35rem;">
+          <button class="button button-small button-primary" type="submit" style="width: 100%;">Close Incident</button>
+        </form>
+        {% endif %}
+
+        <!-- Reopen if Resolved, Closed, or Cancelled -->
+        {% if incident.status in ['Resolved', 'Closed', 'Cancelled'] %}
+        <form method="post" action="{{ url_for('main.reopen_incident', incident_id=incident.id) }}" style="margin-bottom: 0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="reason" placeholder="Reason for reopening..." required style="font-size: 12px; padding: 6px; margin-bottom: 0.35rem;">
+          <button class="button button-small button-secondary" type="submit" style="width: 100%;">Reopen Incident</button>
+        </form>
+        {% endif %}
+
+        <!-- Cancel if Open -->
+        {% if incident.status not in ['Closed', 'Cancelled'] %}
+        <form method="post" action="{{ url_for('main.cancel_incident', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="reason" placeholder="Mandatory cancellation reason..." required style="font-size: 12px; padding: 6px; margin-bottom: 0.35rem;">
+          <button class="button button-small button-secondary" type="submit" style="color: #b91c1c; border-color: #fca5a5; width: 100%;">Cancel Incident</button>
+        </form>
+        {% endif %}
+      </section>
+
+      {% endif %}
+    </div>
+  </div>
+</main>
+{% endblock %}

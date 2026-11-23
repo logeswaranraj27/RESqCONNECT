@@ -1,31 +1,58 @@
 {% extends "base.html" %}
-{% block title %}Sign in - ResQConnect{% endblock %}
+{% block title %}Sign In - ResQConnect{% endblock %}
 {% block content %}
 <main class="auth-page">
   <section class="auth-card">
     <div class="brand-lockup">
       <span class="brand-mark">RQ</span>
-      <div><strong>ResQConnect</strong><small>Real-Time Disaster Response</small></div>
+      <div>
+        <strong>ResQConnect</strong>
+        <small>Real-Time Disaster Response and Emergency Coordination</small>
+      </div>
     </div>
     <h1>Operations sign in</h1>
-    <p>Use your role-enabled demo account.</p>
-    <form method="post" action="{{ url_for('auth.login_post') }}" class="form-stack">
+    <p>Sign in with your username or registered email address.</p>
+    <form method="post" action="{{ url_for('auth.login_post') }}" class="form-stack" id="login-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Username
-        <input name="username" autocomplete="username" required>
+      <label>Username or Email
+        <input name="username" value="{{ username|default('') }}" autocomplete="username" placeholder="e.g. officer1 or user@example.com" required autofocus>
       </label>
       <label>Password
-        <input name="password" type="password" autocomplete="current-password" required>
+        <div style="position: relative; display: flex; align-items: center;">
+          <input name="password" id="password-field" type="password" autocomplete="current-password" placeholder="Enter your password" required style="width: 100%; padding-right: 2.75rem;">
+          <button type="button" id="toggle-password" style="position: absolute; right: 0.5rem; background: none; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem;" aria-label="Toggle password visibility">Show</button>
+        </div>
       </label>
-      <button class="button button-primary" type="submit">Sign in</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; margin-top: -0.25rem;">
+        <label style="display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+          <input type="checkbox" name="remember_me" value="1"> Remember me
+        </label>
+        <a href="{{ url_for('auth.forgot_password') }}" style="color: var(--primary, #0284c7); text-decoration: none;">Forgot password?</a>
+      </div>
+      <button class="button button-primary" id="login-btn" type="submit" style="margin-top: 0.5rem;">Sign In</button>
     </form>
-    <div class="demo-accounts">
-      <strong>Demo accounts</strong>
-      <span>citizen1 / {{ demo_password }}</span>
-      <span>officer1 / {{ demo_password }}</span>
-      <span>rescue1 / {{ demo_password }}</span>
-      <span>admin1 / {{ demo_password }}</span>
+    <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color, #e2e8f0); text-align: center; font-size: 0.95rem;">
+      Need to report an emergency? <a href="{{ url_for('auth.register') }}" style="color: var(--primary, #0284c7); font-weight: 600; text-decoration: none;">Register as a Citizen</a>
     </div>
   </section>
 </main>
+<script>
+  const toggleBtn = document.getElementById('toggle-password');
+  const passInput = document.getElementById('password-field');
+  if (toggleBtn && passInput) {
+    toggleBtn.addEventListener('click', () => {
+      const isPass = passInput.type === 'password';
+      passInput.type = isPass ? 'text' : 'password';
+      toggleBtn.textContent = isPass ? 'Hide' : 'Show';
+    });
+  }
+  const form = document.getElementById('login-form');
+  const btn = document.getElementById('login-btn');
+  if (form && btn) {
+    form.addEventListener('submit', () => {
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+    });
+  }
+</script>
 {% endblock %}

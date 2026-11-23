@@ -1,8 +1,11 @@
-"""Seed demo data for local and PostgreSQL databases."""
-from werkzeug.security import generate_password_hash
+"""Seed demo data for local and PostgreSQL databases.
+Idempotent and safe: never deletes or overwrites existing user data.
+"""
 import os
+from werkzeug.security import generate_password_hash
 
 from app import create_app
+from app.repositories.base import utc_now
 
 
 app = create_app()
@@ -17,10 +20,10 @@ roles = [
 ]
 
 users = [
-    ("citizen1", "citizen1", "Demo Citizen", "role-citizen"),
-    ("officer1", "officer1", "Demo Emergency Officer", "role-officer"),
-    ("rescue1", "rescue1", "Demo Rescue Team Coordinator", "role-team"),
-    ("admin1", "admin1", "Demo Administrator", "role-admin"),
+    ("citizen1", "citizen1", "Demo Citizen", "role-citizen", "citizen1@resqconnect.org", None, 0),
+    ("officer1", "officer1", "Demo Emergency Officer", "role-officer", "officer1@resqconnect.org", None, 1),
+    ("rescue1", "rescue1", "Demo Rescue Team Coordinator", "role-team", "rescue1@resqconnect.org", "team04", 0),
+    ("admin1", "admin1", "Demo Administrator", "role-admin", "admin1@resqconnect.org", None, 1),
 ]
 
 teams = [
@@ -47,112 +50,118 @@ incidents = [
     ("incident112", "Other", "Power outage affecting a public shelter.", "Sholinganallur, Chennai", 12.9010, 80.2279, "Low", "Closed", "citizen1"),
 ]
 
+resources = [
+    ("res-team04-floodboat", "team04", "Flood rescue boat", "Boat", 2),
+    ("res-team04-medkit", "team04", "Emergency medical kit", "Medical", 8),
+    ("res-team04-radio", "team04", "Field radio", "Communication", 6),
+    ("res-team01-pump", "team01", "Fire pump", "Fire", 3),
+    ("res-team03-lift", "team03", "Hydraulic lift", "HeavyEquipment", 2),
+    ("res-team06-kit", "team06", "General response kit", "General", 10),
+]
+
 connection = database.connect()
 try:
     cursor = connection.cursor()
-    if database.is_postgres:
-        for role_id, name, description in roles:
+
+    def record_exists(table, id_val):
+        cursor.execute(database.placeholder_sql(f"SELECT 1 FROM {table} WHERE id = ?"), (id_val,))
+        return cursor.fetchone() is not None
+
+    # Roles
+    for role_id, name, description in roles:
+        if not record_exists("roles", role_id):
             cursor.execute(
-                "INSERT INTO roles (id, name, description) VALUES (%s, %s, %s) "
-                "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description",
+                database.placeholder_sql("INSERT INTO roles (id, name, description) VALUES (?, ?, ?)"),
                 (role_id, name, description),
             )
-    else:
-        for role_id, name, description in roles:
+
+    # Users - insert only if missing, preserving any existing changes or user accounts
+    for user_id, username, display_name, role_id, email, team_id, must_change in users:
+        if not record_exists("users", user_id):
             cursor.execute(
-                "INSERT INTO roles (id, name, description) VALUES (?, ?, ?) "
-                "ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description",
-                (role_id, name, description),
+                database.placeholder_sql(
+                    """INSERT INTO users
+                    (id, username, password_hash, display_name, role_id, email, is_active, is_demo, team_id, must_change_password, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)"""
+                ),
+                (user_id, username, generate_password_hash(demo_password), display_name, role_id, email, team_id, must_change, utc_now()),
             )
 
-    # Demo seed is intentionally resettable; live data is never part of this script.
-    demo_tables = [
-        "communication_records", "audit_logs", "status_updates", "assignments",
-        "resources", "verification_records", "incidents", "rescue_teams", "users",
-    ]
-    for table in demo_tables:
-        cursor.execute(database.placeholder_sql(f"DELETE FROM {table} WHERE is_demo = 1"))
-
-    for username, password, display_name, role_id in users:
-        cursor.execute(
-            database.placeholder_sql(
-                "INSERT INTO users (id, username, password_hash, display_name, role_id, is_active, is_demo) "
-                "VALUES (?, ?, ?, ?, ?, 1, 1)"
-            ),
-            (username, username, generate_password_hash(demo_password), display_name, role_id),
-        )
-
+    # Rescue teams
     for team_id, name, capabilities, availability, latitude, longitude in teams:
-        cursor.execute(
-            database.placeholder_sql(
-                "INSERT INTO rescue_teams (id, name, capabilities, availability, latitude, longitude, is_demo) "
-                "VALUES (?, ?, ?, ?, ?, ?, 1)"
-            ),
-            (team_id, name, capabilities, availability, latitude, longitude),
-        )
+        if not record_exists("rescue_teams", team_id):
+            cursor.execute(
+                database.placeholder_sql(
+                    """INSERT INTO rescue_teams (id, name, capabilities, availability, latitude, longitude, version, is_demo)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, 1)"""
+                ),
+                (team_id, name, capabilities, availability, latitude, longitude),
+            )
 
+    # Incidents
     for incident_id, incident_type, description, address, latitude, longitude, severity, status, reporter in incidents:
-        duplicate = incident_id == "incident103"
-        suspicious = incident_id == "incident107"
-        cursor.execute(
-            database.placeholder_sql(
-                """INSERT INTO incidents
-                (id, incident_type, description, address, latitude, longitude, severity, status,
-                 reporter_id, priority_score, priority_level, duplicate_flag, suspicious_flag, is_demo, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?, 1,
-                        '2026-11-19T10:00:00+00:00', '2026-11-19T10:00:00+00:00')"""
-            ),
-            (incident_id, incident_type, description, address, latitude, longitude, severity, status,
-             reporter, 1 if duplicate else 0, 1 if suspicious else 0),
-        )
+        if not record_exists("incidents", incident_id):
+            duplicate = incident_id == "incident103"
+            suspicious = incident_id == "incident107"
+            dup_of = "incident102" if duplicate else None
+            cursor.execute(
+                database.placeholder_sql(
+                    """INSERT INTO incidents
+                    (id, incident_type, description, address, latitude, longitude, severity, reported_severity, effective_severity,
+                     status, reporter_id, priority_score, priority_level, duplicate_flag, suspicious_flag, duplicate_of, version, is_demo, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?, ?, 1, 1, '2026-11-19T10:00:00+00:00', '2026-11-19T10:00:00+00:00')"""
+                ),
+                (incident_id, incident_type, description, address, latitude, longitude, severity, severity, severity,
+                 status, reporter, 1 if duplicate else 0, 1 if suspicious else 0, dup_of),
+            )
 
-    resources = [
-        ("res-team04-floodboat", "team04", "Flood rescue boat", "Boat", 2),
-        ("res-team04-medkit", "team04", "Emergency medical kit", "Medical", 8),
-        ("res-team04-radio", "team04", "Field radio", "Communication", 6),
-        ("res-team01-pump", "team01", "Fire pump", "Fire", 3),
-        ("res-team03-lift", "team03", "Hydraulic lift", "HeavyEquipment", 2),
-        ("res-team06-kit", "team06", "General response kit", "General", 10),
-    ]
+    # Resources
     for resource_id, team_id, name, resource_type, quantity in resources:
+        if not record_exists("resources", resource_id):
+            cursor.execute(
+                database.placeholder_sql(
+                    "INSERT INTO resources (id, team_id, name, resource_type, quantity, is_demo) VALUES (?, ?, ?, ?, ?, 1)"
+                ),
+                (resource_id, team_id, name, resource_type, quantity),
+            )
+
+    # Assignments
+    if not record_exists("assignments", "assignment01"):
         cursor.execute(
             database.placeholder_sql(
-                "INSERT INTO resources (id, team_id, name, resource_type, quantity, is_demo) VALUES (?, ?, ?, ?, ?, 1)"
-            ),
-            (resource_id, team_id, name, resource_type, quantity),
+                """INSERT INTO assignments
+                (id, incident_id, team_id, status, officer_id, recommendation_reason, version, is_demo, created_at)
+                VALUES ('assignment01', 'incident101', 'team04', 'PendingApproval', 'officer1',
+                        'Demo recommendation: FloodRescue capability and Available status', 1, 1,
+                        '2026-11-19T10:00:00+00:00')"""
+            )
         )
 
-    cursor.execute(
-        database.placeholder_sql(
-            """INSERT INTO assignments
-            (id, incident_id, team_id, status, officer_id, recommendation_reason, is_demo, created_at)
-            VALUES ('assignment01', 'incident101', 'team04', 'PendingApproval', 'officer1',
-                    'Demo recommendation: FloodRescue capability and Available status', 1,
-                    '2026-11-19T10:00:00+00:00')"""
+    if not record_exists("assignments", "assignment02"):
+        cursor.execute(
+            database.placeholder_sql(
+                """INSERT INTO assignments
+                (id, incident_id, team_id, status, officer_id, acknowledged_at, dispatched_at, recommendation_reason, version, is_demo, created_at)
+                VALUES ('assignment02', 'incident109', 'team01', 'Acknowledged', 'officer1',
+                        '2026-11-19T10:10:00+00:00', '2026-11-19T10:12:00+00:00',
+                        'Demo FireRescue capability match', 1, 1, '2026-11-19T10:05:00+00:00')"""
+            )
         )
-    )
 
-    cursor.execute(
-        database.placeholder_sql(
-            """INSERT INTO assignments
-            (id, incident_id, team_id, status, officer_id, acknowledged_at, dispatched_at, recommendation_reason, is_demo, created_at)
-            VALUES ('assignment02', 'incident109', 'team01', 'Acknowledged', 'officer1',
-                    '2026-11-19T10:10:00+00:00', '2026-11-19T10:12:00+00:00',
-                    'Demo FireRescue capability match', 1, '2026-11-19T10:05:00+00:00')"""
+    # Communication records
+    if not record_exists("communication_records", "comm-demo-01"):
+        cursor.execute(
+            database.placeholder_sql(
+                """INSERT INTO communication_records
+                (id, incident_id, assignment_id, recipient_team_id, channel, status, payload, delivered_at, escalated, is_demo, created_at)
+                VALUES ('comm-demo-01', 'incident101', 'assignment01', 'team04', 'InApp',
+                        'Delivered', 'Demo in-app assignment notification', '2026-11-19T10:00:01+00:00', 0, 1,
+                        '2026-11-19T10:00:00+00:00')"""
+            )
         )
-    )
 
-    cursor.execute(
-        database.placeholder_sql(
-            """INSERT INTO communication_records
-            (id, incident_id, assignment_id, recipient_team_id, channel, status, payload, delivered_at, escalated, is_demo, created_at)
-            VALUES ('comm-demo-01', 'incident101', 'assignment01', 'team04', 'InApp',
-                    'Delivered', 'Demo in-app assignment notification', '2026-11-19T10:00:01+00:00', 0, 1,
-                    '2026-11-19T10:00:00+00:00')"""
-        )
-    )
     connection.commit()
 finally:
     connection.close()
 
-print("ResQConnect demo data seeded.")
+print("ResQConnect demo data verified / seeded idempotently.")

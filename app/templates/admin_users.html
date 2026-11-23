@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}User Management - ResQConnect{% endblock %}
+{% block content %}
+<main class="app-shell">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h1 style="font-size: 1.75rem; margin: 0; color: #0f172a;">User & Role Management</h1>
+      <p style="color: #64748b; margin: 0.25rem 0 0;">Manage platform users, role assignments, and team links.</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+      <a class="button button-secondary" href="{{ url_for('main.dashboard') }}">Back to Dashboard</a>
+      <form method="post" action="{{ url_for('main.rotate_demo_passwords') }}" onsubmit="return confirm('Rotate passwords for admin1, officer1, rescue1 now?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-secondary" type="submit" style="color: #b91c1c; border-color: #fca5a5;">Rotate Privileged Passwords</button>
+      </form>
+    </div>
+  </div>
+
+  <section class="panel" style="margin-bottom: 1.5rem;">
+    <div style="padding: 1rem 1.25rem; display: flex; gap: 1rem; flex-wrap: wrap; background: #f8fafc; border-radius: 8px;">
+      <form method="get" action="{{ url_for('main.admin_users') }}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; width: 100%;">
+        <input name="search" value="{{ search|default('') }}" placeholder="Search username, name, or email..." style="flex: 1; min-width: 200px;">
+        <select name="role_id">
+          <option value="">All Roles</option>
+          <option value="role-citizen" {% if role_filter == 'role-citizen' %}selected{% endif %}>Citizen</option>
+          <option value="role-officer" {% if role_filter == 'role-officer' %}selected{% endif %}>Emergency Officer</option>
+          <option value="role-team" {% if role_filter == 'role-team' %}selected{% endif %}>Rescue Team</option>
+          <option value="role-admin" {% if role_filter == 'role-admin' %}selected{% endif %}>Administrator</option>
+        </select>
+        <button class="button button-secondary" type="submit">Filter</button>
+        {% if search or role_filter %}
+        <a class="button button-secondary" href="{{ url_for('main.admin_users') }}">Clear</a>
+        {% endif %}
+      </form>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <h2>Accounts ({{ users|length }})</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Linked Team</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>
+              <strong>{{ u.display_name }}</strong>
+              <div style="color: #64748b; font-size: 0.8rem;">@{{ u.username }}</div>
+            </td>
+            <td>{{ u.email|default('—') }}</td>
+            <td><span class="badge status">{{ u.role_name }}</span></td>
+            <td>{{ u.team_name or u.team_id or '—' }}</td>
+            <td>
+              {% if u.is_active %}
+              <span class="badge" style="background: #dcfce7; color: #166534;">Active</span>
+              {% else %}
+              <span class="badge" style="background: #fee2e2; color: #991b1b;">Deactivated</span>
+              {% endif %}
+            </td>
+            <td style="white-space: nowrap;">
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <!-- Role and Team Form -->
+                <form method="post" action="{{ url_for('main.update_user_role', user_id=u.id) }}" style="display: flex; gap: 0.35rem; align-items: center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <select name="role_id" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" onchange="this.form.team_id.style.display = (this.value === 'role-team') ? 'inline-block' : 'none';">
+                    <option value="role-citizen" {% if u.role_id == 'role-citizen' %}selected{% endif %}>Citizen</option>
+                    <option value="role-officer" {% if u.role_id == 'role-officer' %}selected{% endif %}>Officer</option>
+                    <option value="role-team" {% if u.role_id == 'role-team' %}selected{% endif %}>Rescue Team</option>
+                    <option value="role-admin" {% if u.role_id == 'role-admin' %}selected{% endif %}>Administrator</option>
+                  </select>
+                  <select name="team_id" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; display: {% if u.role_id == 'role-team' %}inline-block{% else %}none{% endif %};">
+                    <option value="">Select Team</option>
+                    {% for t in teams %}
+                    <option value="{{ t.id }}" {% if u.team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="button button-small button-secondary" type="submit" title="Save role/team">Save</button>
+                </form>
+
+                <!-- Status Form -->
+                {% if u.id != current_user.id %}
+                <form method="post" action="{{ url_for('main.update_user_status', user_id=u.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="is_active" value="{{ 0 if u.is_active else 1 }}">
+                  <button class="button button-small {% if u.is_active %}button-secondary{% else %}button-primary{% endif %}" type="submit">
+                    {{ 'Deactivate' if u.is_active else 'Activate' }}
+                  </button>
+                </form>
+                {% endif %}
+
+                <!-- Password Reset Modal Trigger -->
+                <button class="button button-small button-secondary" type="button" onclick="document.getElementById('pwd-modal-{{ u.id }}').style.display='block';">Reset Pwd</button>
+              </div>
+
+              <!-- Reset Password Inline Box -->
+              <div id="pwd-modal-{{ u.id }}" style="display:none; margin-top: 0.5rem; padding: 0.5rem; background: #f1f5f9; border-radius: 4px;">
+                <form method="post" action="{{ url_for('main.admin_reset_user_password', user_id=u.id) }}" style="display: flex; gap: 0.35rem; align-items: center;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input name="new_password" type="password" placeholder="New password" required style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: 140px;">
+                  <button class="button button-small button-primary" type="submit">Set</button>
+                  <button class="button button-small button-secondary" type="button" onclick="document.getElementById('pwd-modal-{{ u.id }}').style.display='none';">Cancel</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+{% endblock %}

@@ -41,3 +41,36 @@ textarea{min-height:100px;resize:vertical}.demo-accounts{display:grid;gap:4px;ma
 @media(max-width:640px){.page-heading{align-items:flex-start}.metric-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.span-2{grid-column:auto}.action-cell form{align-items:stretch;flex-direction:column}.action-cell select{width:100%;max-width:none}.critical-panel div{grid-template-columns:1fr}.coordinate-row input{max-width:none}.filter-row{flex-direction:column;align-items:stretch}.filter-row label{width:100%}}
 @media(max-width:900px){.workflow-guide{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.workflow-guide{grid-template-columns:1fr}}
+
+/* Live indicator & Pulse */
+.live-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #166534; background: #dcfce7; padding: 4px 10px; border-radius: 999px; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 rgba(22, 163, 74, 0.4); animation: pulse 2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); } 70% { box-shadow: 0 0 0 7px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
+
+/* Navigation */
+.nav-links { display: flex; align-items: center; gap: 14px; margin-left: 20px; }
+.nav-link { color: #475467; text-decoration: none; font-size: 14px; font-weight: 600; padding: 6px 10px; border-radius: 6px; }
+.nav-link:hover, .nav-link.active { color: var(--blue); background: #eff8ff; }
+
+/* Notification Dropdown */
+.notif-container { position: relative; }
+.notif-dropdown { display: none; position: absolute; right: 0; top: 120%; width: 320px; max-height: 400px; overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 1050; padding: 12px; }
+.notif-dropdown.show { display: block; }
+.notif-item { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item strong { display: block; font-size: 13px; color: #0f172a; }
+.notif-item small { color: #64748b; font-size: 11px; }
+
+/* Timeline for Incident Details */
+.timeline { position: relative; padding-left: 24px; margin-top: 16px; border-left: 2px solid #e2e8f0; }
+.timeline-item { position: relative; margin-bottom: 20px; }
+.timeline-item::before { content: ""; position: absolute; left: -31px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); border: 2px solid #fff; }
+.timeline-item.warning::before { background: var(--amber); }
+.timeline-item.critical::before { background: var(--red); }
+.timeline-item.success::before { background: var(--green); }
+.timeline-meta { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+.timeline-content { font-size: 13px; color: #1e293b; background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; }
+
+/* Escalated Alert Banner */
+.escalated-banner { background: #fef2f2; border: 2px solid #f87171; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.escalated-banner h3 { margin: 0 0 4px; color: #991b1b; font-size: 15px; }

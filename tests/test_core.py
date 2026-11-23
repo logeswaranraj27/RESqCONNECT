@@ -161,7 +161,7 @@ def test_role_access_and_team_completion(app):
     citizen_login = client.post("/login", data={"username": "citizen1", "password": "demo1234"})
     assert citizen_login.status_code == 302
     assert client.get("/reports").status_code == 403
-    assert client.get("/admin/users").status_code == 404
+    assert client.get("/admin/users").status_code == 403
     client.post("/logout")
 
 

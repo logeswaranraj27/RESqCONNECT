@@ -72,6 +72,14 @@ def create_app(test_config=None):
             app.config["ACKNOWLEDGEMENT_TIMEOUT_SECONDS"]
         )
 
+    @app.before_request
+    def check_password_change_enforcement():
+        from flask import request, redirect, url_for
+        if session.get("must_change_password"):
+            allowed_endpoints = ("auth.change_password_required", "auth.change_password_required_post", "auth.logout", "static")
+            if request.endpoint and request.endpoint not in allowed_endpoints:
+                return redirect(url_for("auth.change_password_required"))
+
     @app.errorhandler(400)
     def handle_bad_request(e):
         return render_template(

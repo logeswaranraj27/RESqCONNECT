@@ -1,36 +1,73 @@
 {% extends "base.html" %}
-{% block title %}Rescue team console - ResQConnect{% endblock %}
+{% block title %}Rescue Team Console - ResQConnect{% endblock %}
 {% block content %}
 <main class="app-shell">
-  <div class="page-heading"><div><p class="eyebrow">Rescue Team console</p><h1>My assignments</h1></div></div>
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">Rescue Team Console</p>
+      <h1>Assignments & Operations: {{ current_team.name if current_team else 'Field Team' }}</h1>
+    </div>
+  </div>
+
   <section class="workflow-guide team-guide" aria-label="Team assignment workflow">
-    <div><span>1</span><strong>Acknowledge</strong><small>Confirm your team received the order</small></div>
-    <div><span>2</span><strong>Dispatched</strong><small>The team is travelling to the location</small></div>
-    <div><span>3</span><strong>On Scene</strong><small>The team has reached the incident</small></div>
-    <div><span>4</span><strong>Completed</strong><small>Response work has finished</small></div>
+    <div><span>1</span><strong>Acknowledge</strong><small>Confirm receipt of dispatch order</small></div>
+    <div><span>2</span><strong>Dispatched</strong><small>En route to the incident location</small></div>
+    <div><span>3</span><strong>On Scene</strong><small>Arrived on site and providing aid</small></div>
+    <div><span>4</span><strong>Completed</strong><small>Operation successfully concluded</small></div>
   </section>
+
   {% if assignments %}
   <section class="assignment-grid">
-  {% for assignment in assignments %}
-  <article class="panel assignment-card">
-    <div class="assignment-top"><strong>{{ assignment.incident_id }}</strong><span class="badge severity-{{ assignment.severity|lower }}">{{ assignment.severity }}</span></div>
-    <h2>{{ assignment.incident_type }}</h2><p>{{ assignment.description }}</p><p class="muted">{{ assignment.address }}</p>
-    <div class="assignment-status"><span>Assignment</span><strong>{{ assignment.status }}</strong></div>
-    {% if assignment.status in ['PendingAcknowledgement','Acknowledged','Dispatched','On Scene'] %}
-    <div class="action-stack">
-      {% if assignment.status == 'PendingAcknowledgement' %}
-      <form method="post" action="{{ url_for('main.acknowledge_assignment', assignment_id=assignment.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Acknowledge assignment</button></form>
+    {% for assignment in assignments %}
+    {% set eff_sev = assignment.effective_severity or assignment.severity %}
+    <article class="panel assignment-card">
+      <div class="assignment-top">
+        <a href="{{ url_for('main.incident_details', incident_id=assignment.incident_id) }}" style="font-weight: 700; color: #0f172a; text-decoration: none;">
+          {{ assignment.incident_id }}
+        </a>
+        <span class="badge severity-{{ eff_sev|lower }}">{{ eff_sev }}</span>
+      </div>
+      <h2>{{ assignment.incident_type }}</h2>
+      <p>{{ assignment.description }}</p>
+      <p class="muted">{{ assignment.address }}</p>
+
+      <div class="assignment-status">
+        <span>Assignment Status:</span>
+        <strong style="color: #1e40af;">{{ assignment.status }}</strong>
+      </div>
+
+      {% if assignment.status in ['PendingAcknowledgement', 'PendingApproval', 'Acknowledged', 'Dispatched', 'On Scene'] %}
+      <div class="action-stack">
+        {% if assignment.status in ['PendingAcknowledgement', 'PendingApproval'] %}
+        <form method="post" action="{{ url_for('main.acknowledge_assignment', assignment_id=assignment.id) }}" style="margin-bottom: 0.5rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button button-primary" type="submit" style="width: 100%;">Acknowledge Assignment</button>
+        </form>
+        {% endif %}
+
+        {% if assignment.status in ['Acknowledged', 'Dispatched', 'On Scene'] %}
+        <form method="post" action="{{ url_for('main.update_team_status', assignment_id=assignment.id) }}" class="status-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="status" aria-label="Operational status">
+            <option value="Dispatched" {% if assignment.status == 'Dispatched' %}selected{% endif %}>Dispatched</option>
+            <option value="On Scene" {% if assignment.status == 'On Scene' %}selected{% endif %}>On Scene</option>
+            <option value="Completed">Completed</option>
+          </select>
+          <button class="button button-secondary" type="submit">Update Status</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="complete-note">Assignment {{ assignment.status }}</div>
       {% endif %}
-      <form method="post" action="{{ url_for('main.update_team_status', assignment_id=assignment.id) }}" class="status-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="status" aria-label="Operational status"><option>Dispatched</option><option>On Scene</option><option>Completed</option></select><button class="button button-secondary" type="submit">Update status</button>
-      </form>
-    </div>
-    {% else %}<div class="complete-note">Assignment complete</div>{% endif %}
-  </article>
-  {% endfor %}
+    </article>
+    {% endfor %}
   </section>
   {% else %}
-  <section class="empty-state"><h2>No active assignments</h2><p>New assignments approved by an Emergency Officer will appear here.</p></section>
+  <section class="empty-state">
+    <h2>No active assignments</h2>
+    <p>New assignments dispatched by an Emergency Officer will appear here live.</p>
+  </section>
   {% endif %}
 </main>
 {% endblock %}

@@ -48,3 +48,6 @@ class Database:
             connection.commit()
         finally:
             connection.close()
+
+        from app.repositories.migrations import run_migrations
+        run_migrations(self)

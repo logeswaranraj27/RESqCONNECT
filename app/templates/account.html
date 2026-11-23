@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}My Account - ResQConnect{% endblock %}
+{% block content %}
+<main class="app-shell" style="max-width: 800px; margin: 2rem auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <h1 style="font-size: 1.75rem; margin: 0; color: #0f172a;">Account Settings</h1>
+      <p style="color: #64748b; margin: 0.25rem 0 0;">Manage your profile information and credentials.</p>
+    </div>
+    <a class="button button-secondary" href="{{ url_for('main.dashboard') }}">Back to Dashboard</a>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+    <!-- Profile Card -->
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Profile Details</h2>
+      </div>
+      <div style="padding: 1.5rem;">
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 6px; font-size: 0.9rem; color: #475569;">
+          <div><strong>Username:</strong> {{ user.username }}</div>
+          <div><strong>Role:</strong> <span class="badge status">{{ user.role_name|default('Citizen') }}</span></div>
+          {% if user.team_id %}
+          <div><strong>Assigned Team:</strong> {{ user.team_id }}</div>
+          {% endif %}
+        </div>
+        <form method="post" action="{{ url_for('auth.update_profile') }}" class="form-stack">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Display Name
+            <input name="display_name" value="{{ user.display_name }}" required>
+          </label>
+          <label>Email Address
+            <input name="email" type="email" value="{{ user.email }}" required>
+          </label>
+          <label>Contact Number
+            <input name="contact_number" value="{{ user.contact_number|default('') }}" placeholder="+91 ...">
+          </label>
+          <button class="button button-primary" type="submit" style="align-self: flex-start;">Save Changes</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Password Change Card -->
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Change Password</h2>
+      </div>
+      <div style="padding: 1.5rem;">
+        <form method="post" action="{{ url_for('auth.change_password') }}" class="form-stack">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Current Password
+            <input name="current_password" type="password" required autocomplete="current-password">
+          </label>
+          <label>New Password
+            <input name="new_password" type="password" required autocomplete="new-password" placeholder="At least 8 characters">
+          </label>
+          <label>Confirm New Password
+            <input name="confirm_password" type="password" required autocomplete="new-password">
+          </label>
+          <button class="button button-secondary" type="submit" style="align-self: flex-start;">Update Password</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+{% endblock %}

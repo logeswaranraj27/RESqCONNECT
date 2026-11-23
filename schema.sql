@@ -10,7 +10,14 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL,
     role_id TEXT NOT NULL,
+    email TEXT,
+    contact_number TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
+    failed_login_count INTEGER NOT NULL DEFAULT 0,
+    locked_until TEXT,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    team_id TEXT,
+    created_at TEXT,
     is_demo INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (role_id) REFERENCES roles(id)
 );
@@ -23,12 +30,18 @@ CREATE TABLE IF NOT EXISTS incidents (
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     severity TEXT NOT NULL,
+    reported_severity TEXT,
+    effective_severity TEXT,
     status TEXT NOT NULL,
     reporter_id TEXT NOT NULL,
     priority_score REAL NOT NULL DEFAULT 0,
     priority_level TEXT,
     duplicate_flag INTEGER NOT NULL DEFAULT 0,
     suspicious_flag INTEGER NOT NULL DEFAULT 0,
+    duplicate_of TEXT,
+    cancellation_reason TEXT,
+    officer_notes TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
     is_demo INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -55,6 +68,7 @@ CREATE TABLE IF NOT EXISTS rescue_teams (
     availability TEXT NOT NULL,
     latitude REAL,
     longitude REAL,
+    version INTEGER NOT NULL DEFAULT 1,
     is_demo INTEGER NOT NULL DEFAULT 0
 );
 
@@ -79,6 +93,7 @@ CREATE TABLE IF NOT EXISTS assignments (
     on_scene_at TEXT,
     completed_at TEXT,
     recommendation_reason TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
     is_demo INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (incident_id) REFERENCES incidents(id),
@@ -125,4 +140,33 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TEXT NOT NULL,
     is_demo INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (actor_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    team_id TEXT,
+    role TEXT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    incident_id TEXT,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS scheduler_locks (
+    lock_name TEXT PRIMARY KEY,
+    locked_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    locked_by TEXT NOT NULL
 );

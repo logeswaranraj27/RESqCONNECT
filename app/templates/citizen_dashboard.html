@@ -1,32 +1,61 @@
 {% extends "base.html" %}
-{% block title %}My reports - ResQConnect{% endblock %}
+{% block title %}My Reports - ResQConnect{% endblock %}
 {% block content %}
 <main class="app-shell">
   <div class="page-heading">
-    <div><p class="eyebrow">Citizen workspace</p><h1>My incident reports</h1></div>
-    <a class="button button-primary" href="{{ url_for('main.report_form') }}">Report an incident</a>
+    <div>
+      <p class="eyebrow">Citizen Workspace</p>
+      <h1>My Emergency Reports</h1>
+    </div>
+    <a class="button button-primary" href="{{ url_for('main.report_form') }}">Report an Incident</a>
   </div>
+
   {% if incidents %}
   <section class="panel">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Incident ID</th><th>Type</th><th>Severity</th><th>Status</th><th>Flags</th><th>Reported</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Incident ID</th>
+            <th>Type</th>
+            <th>Address</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Flags</th>
+            <th>Reported Time</th>
+            <th>Action</th>
+          </tr>
+        </thead>
         <tbody>
-        {% for incident in incidents %}
-        <tr>
-          <td><strong>{{ incident.id }}</strong></td><td>{{ incident.incident_type }}</td>
-          <td><span class="badge severity-{{ incident.severity|lower }}">{{ incident.severity }}</span></td>
-          <td><span class="badge status">{{ incident.status }}</span></td>
-          <td>{% if incident.duplicate_flag %}<span class="flag">Duplicate review</span>{% endif %}{% if incident.suspicious_flag %}<span class="flag warning">Suspicious flag</span>{% endif %}{% if not incident.duplicate_flag and not incident.suspicious_flag %}-{% endif %}</td>
-          <td>{{ incident.created_at[:16] }}</td>
-        </tr>
-        {% endfor %}
+          {% for incident in incidents %}
+          {% set eff_sev = incident.effective_severity or incident.severity %}
+          <tr>
+            <td><strong>{{ incident.id }}</strong></td>
+            <td>{{ incident.incident_type }}</td>
+            <td>{{ incident.address }}</td>
+            <td><span class="badge severity-{{ eff_sev|lower }}">{{ eff_sev }}</span></td>
+            <td><span class="badge status">{{ incident.status }}</span></td>
+            <td>
+              {% if incident.duplicate_flag %}<span class="flag">Duplicate Review</span>{% endif %}
+              {% if incident.suspicious_flag %}<span class="flag warning">Under Verification</span>{% endif %}
+              {% if not incident.duplicate_flag and not incident.suspicious_flag %}<span style="color: #94a3b8;">—</span>{% endif %}
+            </td>
+            <td>{{ incident.created_at[:19] }}</td>
+            <td>
+              <a class="button button-small button-secondary" href="{{ url_for('main.incident_details', incident_id=incident.id) }}">View Status</a>
+            </td>
+          </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
   </section>
   {% else %}
-  <section class="empty-state"><h2>No reports submitted</h2><p>Submit an incident to begin the response workflow.</p></section>
+  <section class="empty-state">
+    <h2>No reports submitted</h2>
+    <p>You have not submitted any incident reports. Click below if you need to report an emergency.</p>
+    <a class="button button-primary" href="{{ url_for('main.report_form') }}" style="margin-top: 1rem;">Report Incident</a>
+  </section>
   {% endif %}
 </main>
 {% endblock %}
